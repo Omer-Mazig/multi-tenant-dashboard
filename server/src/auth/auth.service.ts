@@ -187,6 +187,7 @@ export class AuthService {
           lastAccess: Date.now(),
         };
         req.session.lastAccess = Date.now();
+        req.session.save();
       } else {
         this.logger.warn('No session object available for tenant verification');
         return { success: false, message: 'Session not available' };

@@ -29,9 +29,8 @@ export class LoginSessionGuard implements CanActivate {
       this.logger.debug(
         `LoginSessionGuard checking session for host: ${req.headers.host}`,
       );
+
       this.logger.debug(`Route params: ${JSON.stringify(req.params)}`);
-      this.logger.debug(`Session ID: ${req.sessionID}`);
-      this.logger.debug(`Session data: ${JSON.stringify(req.session)}`);
 
       // Check if user session exists
       if (!req.session) {
