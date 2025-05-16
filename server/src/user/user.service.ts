@@ -24,8 +24,8 @@ export class UserService {
     );
   }
 
-  findMe(userToFind: User): User {
-    const user = this.users.find((user) => user.id === userToFind.id);
+  findMe(userToFind: string): User {
+    const user = this.users.find((user) => user.id === userToFind);
     if (!user) {
       throw new Error('User not found');
     }

@@ -35,13 +35,7 @@ export class UserController {
       const userId = req.user.id;
       this.logger.debug(`Getting user data for ID: ${userId} on login domain`);
 
-      const user = this.userService.findMe({
-        id: userId,
-        email: '',
-        name: '',
-        password: '',
-        tenants: [],
-      } as User);
+      const user = this.userService.findMe(userId);
 
       const userProfile: UserProfileDto = {
         id: user.id,
@@ -68,13 +62,7 @@ export class UserController {
         `Getting user data for ID: ${userSession.id} on tenant domain`,
       );
 
-      const user = this.userService.findMe({
-        id: userSession.id,
-        email: '',
-        name: '',
-        password: '',
-        tenants: [],
-      } as User);
+      const user = this.userService.findMe(userSession.id);
 
       const userProfile: UserProfileDto = {
         id: user.id,
