@@ -80,6 +80,7 @@ export class AuthController {
     @Res() res: Response,
     @Param('tenantId') tenantId: string,
   ) {
+    this.logger.debug(`Init session for tenant: ${tenantId}`);
     try {
       this.logger.debug(`Initializing session for tenant: ${tenantId}`);
       const userId = req.session.user?.id;
