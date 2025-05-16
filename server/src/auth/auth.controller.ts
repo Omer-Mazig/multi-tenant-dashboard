@@ -81,6 +81,7 @@ export class AuthController {
     @Param('tenantId') tenantId: string,
   ) {
     try {
+      this.logger.debug(`Initializing session for tenant: ${tenantId}`);
       const userId = req.session.user?.id;
 
       if (!userId) {
