@@ -36,18 +36,9 @@ export class TenantController {
 
       if (!result) {
         throw new UnauthorizedException('Invalid or expired token');
+      } else {
+        res.redirect(301, '/');
       }
-
-      req.session.save((err: unknown) => {
-        if (err) {
-          const errorMessage =
-            err instanceof Error ? err.message : 'Unknown error';
-          this.logger.error(`Failed to save session: ${errorMessage}`);
-          res.status(500).send('Failed to create session');
-        } else {
-          res.redirect('/');
-        }
-      });
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
