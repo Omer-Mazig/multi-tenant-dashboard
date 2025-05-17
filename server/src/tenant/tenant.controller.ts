@@ -30,20 +30,64 @@ export class TenantController {
     @Res() res: Response,
   ) {
     try {
-      this.logger.debug(`Verifying one-time token`);
+      this.logger.debug(
+        `Verifying one-time token: ${token.substring(0, 10)}...`,
+      );
 
+      // Verify the token
       const result = this.authService.verifyTenantToken(token, req);
 
-      if (!result) {
-        throw new UnauthorizedException('Invalid or expired token');
+      if (!result.success) {
+        throw new UnauthorizedException(
+          result.message || 'Invalid or expired token',
+        );
+      }
+
+      // Extract tenant ID from the request
+      const tenantId = req.hostname.split('.')[0];
+      this.logger.debug(`Token verified successfully for tenant: ${tenantId}`);
+
+      // Determine if this is an API request or a browser request
+      const isApiRequest =
+        req.xhr || req.headers.accept?.includes('application/json');
+
+      if (isApiRequest) {
+        // API request - return JSON response
+        return res.status(200).json({
+          success: true,
+          message: 'Token verified successfully',
+          tenantId,
+        });
       } else {
-        res.redirect(301, '/');
+        // Force the session to save before redirecting
+        if (req.session) {
+          req.session.save((err: Error | null) => {
+            if (err) {
+              this.logger.error(
+                `Error saving session before redirect: ${err.message}`,
+              );
+            }
+            // Browser request - redirect to tenant frontend
+            this.logger.debug(`Redirecting to tenant frontend`);
+            return res.redirect(302, `http://${tenantId}.lvh.me:5173/`);
+          });
+        } else {
+          // Browser request - redirect to tenant frontend
+          this.logger.debug(`Redirecting to tenant frontend (no session)`);
+          return res.redirect(302, `http://${tenantId}.lvh.me:5173/`);
+        }
       }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Token verification failed: ${errorMessage}`);
-      res.status(401).send('Authentication failed');
+
+      // Return appropriate error response based on request type
+      if (req.xhr || req.headers.accept?.includes('application/json')) {
+        return res.status(401).json({ success: false, message: errorMessage });
+      } else {
+        return res.status(401).send('Authentication failed');
+      }
     }
   }
 

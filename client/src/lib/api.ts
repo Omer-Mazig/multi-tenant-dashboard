@@ -1,10 +1,11 @@
 import axios from "axios";
 import type { LoginFormData } from "../schemas/user";
+import { isLoginDomain, isTenantDomain } from "./domain";
 
 // Determine the API base URL based on current hostname
 const getBaseUrl = () => {
   const hostname = window.location.hostname;
-  const port = "3000"; // Backend port
+  const port = "5173"; // Backend port
 
   console.log("API: Getting base URL for hostname:", hostname);
 
@@ -14,50 +15,14 @@ const getBaseUrl = () => {
   return url;
 };
 
-// Detect whether we're on a login or tenant domain
-const isLoginDomain = () => {
-  return window.location.hostname === "login.lvh.me";
-};
-
-const isTenantDomain = () => {
-  return /^tenant\d+\.lvh\.me$/.test(window.location.hostname);
-};
-
 // Create axios instance with default config
 const api = axios.create({
   baseURL: getBaseUrl(),
   withCredentials: true, // Important for cookies
 });
 
-// Store CSRF token
-let csrfToken: string | null = null;
-
-// Function to get CSRF token
-const getCsrfToken = async () => {
-  if (csrfToken) return csrfToken;
-
-  try {
-    const response = await axios.get(`${getBaseUrl()}/auth/csrf-token`, {
-      withCredentials: true,
-    });
-    csrfToken = response.data.csrfToken;
-    return csrfToken;
-  } catch (error) {
-    console.error("Failed to fetch CSRF token:", error);
-    return null;
-  }
-};
-
 // Log all requests for debugging
 api.interceptors.request.use(async (config) => {
-  // For POST, PUT, DELETE methods, include CSRF token
-  if (["post", "put", "delete", "patch"].includes(config.method || "")) {
-    const token = await getCsrfToken();
-    if (token) {
-      config.headers["X-CSRF-Token"] = token;
-    }
-  }
-
   console.log(
     `API Request: ${config.method?.toUpperCase()} ${config.baseURL}${
       config.url
@@ -98,9 +63,6 @@ export const authApi = {
     const response = await api.post("/auth/logout");
     return response.data;
   },
-  getCsrfToken: async () => {
-    return getCsrfToken();
-  },
   validateSession: async () => {
     const response = await api.get("/auth/validate-session");
     return response.data;
@@ -115,7 +77,9 @@ export const authApi = {
 // Tenant API
 export const tenantApi = {
   verifyToken: async (token: string) => {
+    console.log("Verifying token:", token);
     const response = await api.get(`/tenant/verify-token/${token}`);
+    console.log("Token verification response:", response.data);
     return response.data;
   },
   getDashboard: async () => {
@@ -150,7 +114,16 @@ api.interceptors.response.use(
   (error) => {
     // Handle 401 Unauthorized errors, but only if we're not already on the login page
     if (error.response?.status === 401 && !isLoginPage()) {
-      window.location.href = "/login";
+      const onTenantDomain = isTenantDomain();
+      if (onTenantDomain) {
+        console.log(
+          "Unauthorized on tenant domain - redirecting to local /login"
+        );
+        window.location.href = "/login";
+      } else {
+        console.log("Unauthorized on login domain - redirecting to /login");
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

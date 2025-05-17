@@ -2,7 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as cookieParser from 'cookie-parser';
 import * as session from 'express-session';
-import * as csurf from 'csurf';
 import { Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 
@@ -10,6 +9,9 @@ const tenantTokens = new Map<
   string,
   { id: string; tenant: string; expires: number }
 >();
+
+// Create logger
+const logger = new Logger('Bootstrap');
 
 // Login domain session middleware
 const loginSessionMiddleware = session({
@@ -31,6 +33,11 @@ const loginSessionMiddleware = session({
 const createTenantSessionMiddleware = (hostname: string) => {
   const sessionName = hostname.replace(/\./g, '_') + '.sid';
   const subdomain = hostname.split('.')[0];
+
+  logger.debug(
+    `Creating tenant session middleware for ${hostname} with subdomain ${subdomain}`,
+  );
+
   return session({
     name: sessionName,
     secret: 'tenant-secret',
@@ -40,14 +47,16 @@ const createTenantSessionMiddleware = (hostname: string) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      // Set the domain to match the subdomain (e.g., acme.lvh.me)
+      // Don't use hostname directly to avoid potential cookie issues
       domain: subdomain + '.lvh.me',
+      path: '/', // Make sure the path is set to root
       maxAge: 1000 * 60 * 60, // 1 hour
     },
   });
 };
 
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
   logger.log('Starting server with debug logging enabled');
 
   const app = await NestFactory.create(AppModule, {
@@ -83,16 +92,27 @@ async function bootstrap() {
       // Login domain
       logger.debug(`Using login session middleware for ${hostname}`);
       return loginSessionMiddleware(req, res, next);
-    } else if (/^tenant\d+\.lvh\.me$/.test(hostname)) {
-      // Tenant domain
+    } else if (hostname.endsWith('.lvh.me') && hostname !== 'login.lvh.me') {
+      // Any tenant domain (named or numbered)
       logger.debug(`Using tenant session middleware for ${hostname}`);
       return createTenantSessionMiddleware(hostname)(req, res, next);
+    } else {
+      // Default case - always call next() to prevent requests from hanging
+      logger.debug(
+        `No specific session middleware for ${hostname}, continuing`,
+      );
+      return next();
     }
   });
 
   // Idle timeout for tenant sessions
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (!/^tenant\d+\.lvh\.me$/.test(req.hostname) || !req.session)
+    // Apply timeout to all tenant domains (any subdomain except login)
+    if (
+      !req.hostname.endsWith('.lvh.me') ||
+      req.hostname === 'login.lvh.me' ||
+      !req.session
+    )
       return next();
 
     const now = Date.now();
@@ -106,17 +126,6 @@ async function bootstrap() {
       next();
     }
   });
-
-  // CSRF protection
-  app.use(
-    csurf({
-      cookie: {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-      },
-    }),
-  );
 
   // Store token map globally
   (global as unknown as { tenantTokens: Map<string, any> }).tenantTokens =

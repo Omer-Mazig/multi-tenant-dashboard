@@ -1,7 +1,13 @@
-import type { User } from "@/schemas/user";
 import { AxiosError } from "axios";
-import api, { authApi, isLoginDomain, isTenantDomain } from "./api";
+import { authApi, userApi } from "./api";
+import {
+  isLoginDomain,
+  isTenantDomain,
+  getCurrentTenantId,
+  getTenantUrl,
+} from "./domain";
 import type { LoginFormData } from "../schemas/user";
+import type { User } from "@/schemas/user";
 
 interface LoginResponse {
   user: User;
@@ -20,21 +26,42 @@ class AuthService {
 
   async loginToTenant(tenantId: string): Promise<void> {
     // Use the correct endpoint based on our API structure
-    if (this.isLoginDomain()) {
-      // For login domain, redirect to the init-session endpoint on the login domain
-      const redirectUrl = `http://login.lvh.me:5173/api/auth/init-session/${tenantId}`;
-      console.log(`Redirecting to: ${redirectUrl}`);
-      window.location.href = redirectUrl;
-    } else {
-      console.error("Cannot login to tenant from non-login domain");
+    try {
+      // For login domain, send request to init-session and handle redirect in frontend
+      console.log(`Requesting tenant session for: ${tenantId}`);
+      const data = await authApi.initTenantSession(tenantId);
+
+      console.log("Response data received:", data);
+
+      // Check if the response has the expected data structure
+      if (data && typeof data === "object" && data.success) {
+        console.log(
+          `Got token for tenant ${tenantId}: ${data.token.substring(0, 10)}...`
+        );
+
+        // Create the tenant URL with token as query parameter
+        const redirectUrl = getTenantUrl(tenantId, `/?token=${data.token}`);
+        console.log(`Redirecting to: ${redirectUrl}`);
+
+        // Open a new tab with the modified redirect URL
+        window.open(redirectUrl, "_blank");
+
+        return;
+      } else {
+        console.error("Invalid response format:", data);
+        throw new Error("Invalid response format from server");
+      }
+    } catch (error) {
+      console.error("Failed to login to tenant", error);
+      throw error;
     }
   }
 
   async getMe(): Promise<User> {
     try {
-      // This will use the correct endpoint based on the domain (login/me or tenant/me)
-      const data = await api.get("/users/login/me");
-      return data.data;
+      // Use the userApi function that selects the correct endpoint based on domain
+      const userData = await userApi.getMe();
+      return userData;
     } catch (error) {
       console.error("Failed to get user data:", error);
       throw error;
@@ -44,7 +71,7 @@ class AuthService {
   async validateSession(): Promise<boolean> {
     try {
       const data = await authApi.validateSession();
-      return data.user;
+      return data.valid;
     } catch (error: unknown) {
       if (error instanceof AxiosError && error.response?.status === 401) {
         return false;
@@ -63,6 +90,10 @@ class AuthService {
 
   isLoginDomain(): boolean {
     return isLoginDomain();
+  }
+
+  getCurrentTenantId(): string | null {
+    return getCurrentTenantId();
   }
 }
 

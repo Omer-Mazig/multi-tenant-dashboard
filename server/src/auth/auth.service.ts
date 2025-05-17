@@ -143,8 +143,13 @@ export class AuthService {
     this.tempAuthTokens.set(token, {
       id: userId,
       tenantId,
-      expires: Date.now() + 30000, // 30 seconds expiry
+      expires: Date.now() + 300000, // 5 minutes expiry (increased from 30 seconds)
     });
+
+    this.logger.debug(
+      `Generated tenant token for user ${userId} to access tenant ${tenantId}`,
+    );
+    this.logger.debug(`Token will expire in 5 minutes`);
 
     this.cleanExpiredTokens();
     return token;
@@ -152,6 +157,8 @@ export class AuthService {
 
   verifyTenantToken(token: string, req: Request): VerifyTokenResult {
     try {
+      this.logger.debug(`Verifying tenant token: ${token.substring(0, 10)}...`);
+
       const tokenData = this.tempAuthTokens.get(token);
 
       if (!tokenData) {
@@ -166,8 +173,13 @@ export class AuthService {
       }
 
       const { id, tenantId } = tokenData;
+      this.logger.debug(`Token is valid for user ${id} and tenant ${tenantId}`);
 
       const hostname = req.hostname || req.headers.host?.split(':')[0] || '';
+      this.logger.debug(
+        `Checking if hostname ${hostname} includes tenant ${tenantId}`,
+      );
+
       if (!hostname.includes(tenantId)) {
         this.logger.error(
           `Token used on wrong tenant: ${hostname} vs ${tenantId}`,
@@ -187,13 +199,30 @@ export class AuthService {
           lastAccess: Date.now(),
         };
         req.session.lastAccess = Date.now();
-        req.session.save();
+
+        // Save the session explicitly and synchronously
+        req.session.save((err: Error | null) => {
+          if (err) {
+            this.logger.error(`Error saving tenant session: ${err.message}`);
+          } else {
+            this.logger.debug(
+              `Tenant session saved successfully for user ${id}`,
+            );
+          }
+        });
+
+        this.logger.debug(
+          `Session successfully created for user ${id} on tenant ${tenantId}`,
+        );
       } else {
         this.logger.warn('No session object available for tenant verification');
         return { success: false, message: 'Session not available' };
       }
 
       this.tempAuthTokens.delete(token);
+      this.logger.debug(
+        `Token verification successful and token deleted from storage`,
+      );
       return { success: true };
     } catch (error) {
       this.logger.error('Error verifying tenant token:', error);

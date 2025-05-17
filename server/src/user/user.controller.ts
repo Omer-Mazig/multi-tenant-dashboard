@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { Request, Response } from 'express';
-import { User } from './interfaces/user.interface';
 import { TenantSessionGuard } from '../tenant/tenant-session.guard';
 import { LoginSessionGuard } from '../auth/login-session.guard';
 import { UserProfileDto } from './dto/user-profile.dto';

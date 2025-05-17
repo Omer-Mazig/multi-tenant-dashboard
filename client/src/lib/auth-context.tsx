@@ -146,9 +146,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Fetch CSRF token first
-        await authApi.getCsrfToken();
-
         // Then check for session
         const userData = await userApi.getMe();
 
@@ -174,8 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleLogin = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      // Fetch CSRF token before login
-      await authApi.getCsrfToken();
 
       const response = await authApi.login({ email, password });
 

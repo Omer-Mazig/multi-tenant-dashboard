@@ -2,7 +2,11 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
-import { authService } from "../lib/auth";
+import {
+  isTenantDomain,
+  isLoginDomain,
+  getCurrentTenantId,
+} from "../lib/domain";
 
 export interface ProtectedRouteProps {
   requireLogin?: boolean;
@@ -19,18 +23,42 @@ export function ProtectedRoute({
   const location = useLocation();
 
   useEffect(() => {
-    // Validate the current domain matches the session type
-    if (!isLoading) {
-      const isTenantDomain = authService.isTenantDomain();
-      const isLoginDomain = authService.isLoginDomain();
+    // Only validate domain context if user is already authenticated
+    if (!isLoading && user) {
+      const onTenantDomain = isTenantDomain();
+      const onLoginDomain = isLoginDomain();
+      const currentTenantId = getCurrentTenantId();
 
-      if (requireTenant && !isTenantDomain) {
-        window.location.href = "http://login.lvh.me:3000";
-      } else if (!requireTenant && !isLoginDomain && user) {
-        window.location.href = `http://${user.tenants[0]}.lvh.me:3000`;
+      console.log("ProtectedRoute checks:", {
+        requireTenant,
+        onTenantDomain,
+        onLoginDomain,
+        hasUser: !!user,
+        pathname: location.pathname,
+        userTenants: user.tenants,
+        currentTenantId,
+      });
+
+      // Domain context validations for authenticated users
+      if (requireTenant && !onTenantDomain) {
+        // User is on a non-tenant domain but route requires tenant context
+        console.log(
+          "Tenant route on non-tenant domain - no action taken, will render login select"
+        );
+        // No redirect - let the routing handle this case
+      } else if (
+        !requireTenant &&
+        onTenantDomain &&
+        user.tenants?.length &&
+        currentTenantId !== null
+      ) {
+        // This is a route that doesn't require tenant context but we're on a tenant domain
+        // and we have tenants available - let's render the content here without redirecting
+        console.log("Non-tenant route on tenant domain - rendering content");
+        // Continue with rendering the children
       }
     }
-  }, [isLoading, user, requireTenant]);
+  }, [isLoading, user, requireTenant, location.pathname]);
 
   // Show loading state only briefly to prevent flash
   if (isLoading) {
@@ -46,9 +74,17 @@ export function ProtectedRoute({
     );
   }
 
-  // If not authenticated and login required, redirect to login
+  // If not authenticated and login required, redirect to login page
   if (requireLogin && !user) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    // Always navigate to local /login path regardless of domain
+    // On tenant domains, add the tenant parameter
+    const tenant = getCurrentTenantId();
+    const loginPath = tenant ? `/login?tenant=${tenant}` : "/login";
+
+    console.log(`Unauthenticated - navigating to ${loginPath}`);
+    return (
+      <Navigate to={loginPath} replace state={{ from: location.pathname }} />
+    );
   }
 
   // If tenant is required but user has no tenants, redirect to select-tenant
@@ -61,6 +97,9 @@ export function ProtectedRoute({
       />
     );
   }
+
+  // If we're on login domain but need tenant context and have tenants,
+  // we don't automatically redirect - the TenantSelectPage will handle this
 
   return <>{children}</>;
 }

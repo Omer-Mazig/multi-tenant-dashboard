@@ -8,9 +8,18 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { Separator } from "../components/ui/separator";
+import { useEffect, useState } from "react";
+import { authService } from "../lib/auth";
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
+  const [currentTenant, setCurrentTenant] = useState<string | null>(null);
+
+  useEffect(() => {
+    const tenantId = authService.getCurrentTenantId();
+    console.log("Dashboard loaded with tenant ID:", tenantId);
+    setCurrentTenant(tenantId);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -26,6 +35,9 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-gray-500">Welcome back, {user?.name || "User"}</p>
+          {currentTenant && (
+            <p className="text-blue-600 font-medium">Tenant: {currentTenant}</p>
+          )}
         </div>
         <Button variant="outline" onClick={handleLogout}>
           Logout
@@ -35,7 +47,11 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Secure Dashboard</CardTitle>
-          <CardDescription>You are logged in</CardDescription>
+          <CardDescription>
+            {currentTenant
+              ? `You are logged in to ${currentTenant} tenant`
+              : "You are logged in"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="p-4 border rounded-lg">
@@ -43,6 +59,11 @@ export default function DashboardPage() {
             <p>
               <strong>Email:</strong> {user?.email}
             </p>
+            {currentTenant && (
+              <p className="mt-2">
+                <strong>Current Tenant:</strong> {currentTenant}
+              </p>
+            )}
           </div>
 
           <Separator className="my-4" />
@@ -53,17 +74,30 @@ export default function DashboardPage() {
               user.tenants.map((tenant) => (
                 <div
                   key={tenant}
-                  className="flex items-center justify-between p-2 border rounded"
+                  className={`flex items-center justify-between p-2 border rounded ${
+                    currentTenant === tenant ? "bg-blue-50 border-blue-200" : ""
+                  }`}
                 >
                   <span>
                     <strong>{tenant}</strong>
+                    {currentTenant === tenant && (
+                      <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        Current
+                      </span>
+                    )}
                   </span>
-                  <a
-                    href={`http://login.lvh.me:5173/api/auth/init-session/${tenant}`}
-                    className="ml-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                  >
-                    Login to {tenant}
-                  </a>
+                  {currentTenant !== tenant && (
+                    <button
+                      onClick={() => {
+                        const redirectUrl = `http://login.lvh.me:5173/api/auth/init-session/${tenant}`;
+                        console.log(`Switching to tenant: ${tenant}`);
+                        window.open(redirectUrl, "_blank");
+                      }}
+                      className="ml-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                    >
+                      Login to {tenant}
+                    </button>
+                  )}
                 </div>
               ))
             ) : (

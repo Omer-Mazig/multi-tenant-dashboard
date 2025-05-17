@@ -104,23 +104,22 @@ export class AuthController {
       // Generate a token for tenant authentication
       const token = this.authService.generateTenantToken(userId, tenantId);
 
-      // Redirect to tenant domain with the token
-      this.logger.debug(`Redirecting to tenant domain with token: ${token}`);
-      return res.redirect(
-        301,
-        `http://${tenantId}.lvh.me:5173/api/tenant/verify-token/${token}`,
+      // Return redirect information for the client to handle
+      this.logger.debug(
+        `Returning token to client: ${token.substring(0, 10)}...`,
       );
+      return res.json({
+        success: true,
+        redirectUrl: `http://${tenantId}.lvh.me:5173/api/tenant/verify-token/${token}`,
+        tenantId,
+        token,
+      });
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to initialize tenant session: ${errorMessage}`);
       throw error;
     }
-  }
-
-  @Get('csrf-token')
-  getCsrfToken(@Req() req: Request, @Res() res: Response) {
-    res.status(200).json({ csrfToken: req.csrfToken() });
   }
 
   @Get('validate-session')

@@ -54,11 +54,20 @@ export class LoginSessionGuard implements CanActivate {
         throw new UnauthorizedException('Unauthorized - Invalid host');
       }
 
+      // Update session user data
       req.session.user = {
         id,
         email: req.session.user.email,
         name: req.session.user.name,
         tenants: req.session.user.tenants,
+      };
+
+      // Set the user object on the request
+      req.user = {
+        id: req.session.user.id,
+        email: req.session.user.email || '',
+        name: req.session.user.name || '',
+        tenants: req.session.user.tenants || [],
       };
 
       this.logger.log(`Authorized request for (host: ${host})`);
@@ -87,7 +96,7 @@ export class LoginSessionGuard implements CanActivate {
     // If this is a tenant login request but user isn't logged in, redirect to main login
     if (req.url.includes('/login/') && tenantId) {
       this.logger.debug(`Redirecting to login page for tenant: ${tenantId}`);
-      res.redirect(`http://login.lvh.me:3000/login?tenantId=${tenantId}`);
+      // res.redirect(`http://login.lvh.me:3000/login?tenantId=${tenantId}`);
       return false;
     }
 
